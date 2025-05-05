@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shopify AI Chatbot</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f8f9fa;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    #main {
+      max-width: 480px;
+      margin: 40px auto 0 auto;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+      padding: 0 0 16px 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 600px;
+    }
+    #header {
+      padding: 20px 24px 10px 24px;
+      border-bottom: 1px solid #eee;
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: #222;
+      background: #f5f5f5;
+      border-radius: 10px 10px 0 0;
+    }
+    #model-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 24px 0 24px;
+    }
+    #model-select {
+      flex: 1;
+      padding: 6px 8px;
+      font-size: 1rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      background: #fafbfc;
+    }
+    #chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 0 24px;
+      overflow: hidden;
+    }
+    #chat-log {
+      flex: 1;
+      overflow-y: auto;
+      margin: 12px 0 0 0;
+      padding-bottom: 8px;
+      min-height: 320px;
+    }
+    .message {
+      margin-bottom: 10px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      max-width: 90%;
+      word-break: break-word;
+      font-size: 1rem;
+    }
+    .message-user {
+      background: #e6f0ff;
+      align-self: flex-end;
+      color: #1a237e;
+    }
+    .message-assistant {
+      background: #f1f8e9;
+      align-self: flex-start;
+      color: #33691e;
+    }
+    .message-error {
+      background: #ffebee;
+      color: #b71c1c;
+      border: 1px solid #ffcdd2;
+      align-self: flex-start;
+    }
+    #input-row {
+      display: flex;
+      gap: 8px;
+      padding: 0 24px 0 24px;
+      margin-top: 8px;
+    }
+    #chat-input {
+      flex: 1;
+      padding: 10px;
+      font-size: 1rem;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+      resize: none;
+      min-height: 38px;
+      max-height: 120px;
+    }
+    #send-btn {
+      padding: 0 18px;
+      font-size: 1rem;
+      border-radius: 4px;
+      border: none;
+      background: #1976d2;
+      color: #fff;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #send-btn:disabled {
+      background: #b0bec5;
+      cursor: not-allowed;
+    }
+    @media (max-width: 600px) {
+      #main {
+        margin: 0;
+        min-height: 100vh;
+        border-radius: 0;
+      }
+      #header, #model-row, #chat-container, #input-row {
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="main">
+    <div id="header">Shopify AI Chatbot</div>
+    <div id="model-row">
+      <label for="model-select">Model:</label>
+      <select id="model-select"></select>
+    </div>
+    <div id="chat-container">
+      <div id="chat-log"></div>
+    </div>
+    <form id="input-row" autocomplete="off" onsubmit="return false;">
+      <textarea id="chat-input" placeholder="Type your message..." rows="1"></textarea>
+      <button id="send-btn" type="button">Send</button>
+    </form>
+  </div>
+  <script src="js/storage.js"></script>
+  <script src="js/model-select.js"></script>
+  <script src="js/chat-ui.js"></script>
+  <script src="js/shopify-api.js"></script>
+  <script>
+    // Main logic: API key prompt, chat flow, error handling
+    function promptForApiKey() {
+      let key = window.storage.getApiKey();
+      while (!key) {
+        key = prompt('Enter your Shopify AI Proxy API key (never stored remotely):');
+        if (key) window.storage.setApiKey(key);
+      }
+      return key;
+    }
+
+    function showError(msg) {
+      window.chatUI.appendMessage('error', msg);
+    }
+
+    window.handleUserMessage = async function (content) {
+      const apiKey = window.storage.getApiKey() || promptForApiKey();
+      const model = window.modelSelect.getSelectedModel();
+      window.chatUI.appendMessage('user', content);
+      window.chatUI.setInputDisabled(true);
+      try {
+        const response = await window.shopifyAPI.sendShopifyMessage(apiKey, model, [
+          { role: 'user', content }
+        ]);
+        if (response && response.choices && response.choices[0] && response.choices[0].message) {
+          window.chatUI.appendMessage('assistant', response.choices[0].message.content);
+        } else {
+          showError('No response from assistant.');
+        }
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        window.chatUI.clearInput();
+        window.chatUI.setInputDisabled(false);
+      }
+    };
+
+    // On load: populate model dropdown, set default, and check API key
+    window.addEventListener('DOMContentLoaded', () => {
+      window.modelSelect.populateModelDropdown();
+      const savedModel = window.storage.getModel();
+      document.getElementById('model-select').value = savedModel;
+      if (!window.storage.getApiKey()) {
+        promptForApiKey();
+      }
+    });
+  </script>
+</body>
+</html> 
